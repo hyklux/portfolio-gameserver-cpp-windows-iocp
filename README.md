@@ -10,19 +10,16 @@ IOCP 기반의 메인서버를 실행하고, 여러 클라이언트 세션이 �
 
 
 # 기능
-:heavy_check_mark: IOCP 코어
+:heavy_check_mark: IOCPCore
 
 
-:heavy_check_mark: 서버 서비스
+:heavy_check_mark: ServerService
 
 
-:heavy_check_mark: 세션 매니저
+:heavy_check_mark: SessionManager
 
 
-:heavy_check_mark: 세션 매니저
+:heavy_check_mark: PacketHandler
 
 
-:heavy_check_mark: 패킷 핸들러
-
-
-:heavy_check_mark: 잡큐
+:heavy_check_mark: JobQueue
