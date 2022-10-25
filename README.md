@@ -157,21 +157,21 @@ void ThreadManager::DistributeReservedJobs()
 
 # 패킷 처리
 (캡쳐 필요)
-### **ClientPacketHandler.cs**
+### **ClientPacketHandler.cpp**
 - 클라이언트와의 패킷 송수신 처리
 - 실제 개별 패킷에 대한 응답처리가 이 클래서에서 이루어진다.
 
 
 # Job 큐
 (캡쳐 필요)
-### **JobQueue.cs**
-### **JobTimer.cs**
-### **Job.cs**
+### **JobQueue.cpp**
+### **JobTimer.cpp**
+### **Job.cpp**
 
 
 # DB
 (캡쳐 필요)
-### **DBConnection.cs**
-### **DBConnectionPool.cs**
-### **DBModel.cs**
-### **DBSynchronizer.cs**
+### **DBConnection.cpp**
+### **DBConnectionPool.cpp**
+### **DBModel.cpp**
+### **DBSynchronizer.cpp**
