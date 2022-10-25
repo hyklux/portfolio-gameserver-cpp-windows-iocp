@@ -35,6 +35,50 @@ IOCP 기반의 서버로 여러 클라이언트 세션이 접속해 게임룸에
 ### **IocpCore.cpp**
 - CompletionPort를 생성하고 제어하는 코어 클래스
 - Dispatch(uint32 timeoutMs) 함수로 네트워크 입출력 처리
+``` c++
+IocpCore::IocpCore()
+{
+	_iocpHandle = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
+	ASSERT_CRASH(_iocpHandle != INVALID_HANDLE_VALUE);
+}
+
+IocpCore::~IocpCore()
+{
+	::CloseHandle(_iocpHandle);
+}
+
+bool IocpCore::Dispatch(uint32 timeoutMs)
+{
+	DWORD numOfBytes = 0;
+	ULONG_PTR key = 0;	
+	IocpEvent* iocpEvent = nullptr;
+
+	//작업 실행 가능한 스레드 확인
+	if (::GetQueuedCompletionStatus(_iocpHandle, OUT &numOfBytes, OUT &key, OUT reinterpret_cast<LPOVERLAPPED*>(&iocpEvent), timeoutMs))
+	{
+		IocpObjectRef iocpObject = iocpEvent->owner;
+		iocpObject->Dispatch(iocpEvent, numOfBytes);
+	}
+	else
+	{
+		int32 errCode = ::WSAGetLastError();
+		switch (errCode)
+		{
+		case WAIT_TIMEOUT:
+			return false;
+		default:
+			//실행
+			IocpObjectRef iocpObject = iocpEvent->owner;
+			iocpObject->Dispatch(iocpEvent, numOfBytes);
+			break;
+		}
+	}
+
+	return true;
+}
+```
+
+
 ### **GameServer.cpp**
 - Main Thread에서 DoWorderJob(ServerServiceRef& service) 호출하여 서버 핵심 로직 실행
 ``` c++
