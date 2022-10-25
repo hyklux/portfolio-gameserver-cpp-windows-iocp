@@ -77,8 +77,6 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 	return true;
 }
 ```
-
-
 ### **GameServer.cpp**
 - Main Thread에서 DoWorderJob(ServerServiceRef& service) 호출하여 서버 핵심 로직 실행
 ``` c++
@@ -99,10 +97,45 @@ void DoWorkerJob(ServerServiceRef& service)
 	}
 }
 ```
-### **IocpEvent.cpp**
 ### **ThreadManager.cpp**
+- 쓰레드를 관리하는 클래스
+- 큐에 쌓인 작업을 실행하거나, 아직 큐에 쌓이지 못하고 대기 중인 작업들을 큐에 보관
+``` c++
+void ThreadManager::Launch(function<void(void)> callback)
+{
+	LockGuard guard(_lock);
 
+	_threads.push_back(thread([=]()
+		{
+			InitTLS();
+			callback();
+			DestroyTLS();
+		}));
+}
 
+void ThreadManager::DoGlobalQueueWork()
+{
+	while (true)
+	{
+		uint64 now = ::GetTickCount64();
+		if (now > LEndTickCount)
+			break;
+
+		JobQueueRef jobQueue = GGlobalQueue->Pop();
+		if (jobQueue == nullptr)
+			break;
+
+		jobQueue->Execute();
+	}
+}
+
+void ThreadManager::DistributeReservedJobs()
+{
+	const uint64 now = ::GetTickCount64();
+
+	GJobTimer->Distribute(now);
+}
+```
 # 서버 서비스
 (캡쳐 필요)
 ### **Service.cpp**
