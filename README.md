@@ -30,6 +30,7 @@ IOCP 기반의 메인서버를 실행하고, 여러 클라이언트 세션이 �
 :heavy_check_mark: DB
 
 # IOCPCore
+(캡쳐 필요)
 ### **IocpCore.cpp**
 ### **IocpEvent.cpp**
 ### **SocketUtils.cpp**
@@ -38,25 +39,30 @@ IOCP 기반의 메인서버를 실행하고, 여러 클라이언트 세션이 �
 
 
 # ServerService
+(캡쳐 필요)
 ### **Service.cpp**
 
 
 # SessionManager
+(캡쳐 필요)
 ### **GameSessionManager.cpp**
 ### **GameSession.cpp**
 
 
 # PacketHandler
+(캡쳐 필요)
 ### **ClientPacketHandler.cs**
 
 
 # JobQueue
+(캡쳐 필요)
 ### **JobQueue.cs**
 ### **JobTimer.cs**
 ### **Job.cs**
 
 
 # DB
+(캡쳐 필요)
 ### **DBConnection.cs**
 ### **DBConnectionPool.cs**
 ### **DBModel.cs**
