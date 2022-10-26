@@ -229,6 +229,45 @@ void Session::ProcessSend(int32 numOfBytes)
 //...(중략)
 ```
 ### **SocketUtils.cpp**
+- 소켓 생성/해제 및 소켓에 대해 각종 옵션을 설정할 수 있는 유틸 클래스
+``` c++
+//...(중략)
+
+SOCKET SocketUtils::CreateSocket()
+{
+	return ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+}
+
+bool SocketUtils::SetLinger(SOCKET socket, uint16 onoff, uint16 linger)
+{
+	LINGER option;
+	option.l_onoff = onoff;
+	option.l_linger = linger;
+	return SetSockOpt(socket, SOL_SOCKET, SO_LINGER, option);
+}
+
+bool SocketUtils::SetReuseAddress(SOCKET socket, bool flag)
+{
+	return SetSockOpt(socket, SOL_SOCKET, SO_REUSEADDR, flag);
+}
+
+bool SocketUtils::SetRecvBufferSize(SOCKET socket, int32 size)
+{
+	return SetSockOpt(socket, SOL_SOCKET, SO_RCVBUF, size);
+}
+
+bool SocketUtils::SetSendBufferSize(SOCKET socket, int32 size)
+{
+	return SetSockOpt(socket, SOL_SOCKET, SO_SNDBUF, size);
+}
+
+bool SocketUtils::SetTcpNoDelay(SOCKET socket, bool flag)
+{
+	return SetSockOpt(socket, SOL_SOCKET, TCP_NODELAY, flag);
+}
+
+//...(중략)
+```
 
 
 # 게임 세션 관리
