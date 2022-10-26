@@ -78,7 +78,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 }
 ```
 ### **GameServer.cpp**
-- Main Thread에서 DoWorderJob(ServerServiceRef& service) 호출하여 서버 핵심 로직 실행
+- Main Thread에서 DoWorkerJob(ServerServiceRef& service) 함수를 호출하여 서버 핵심 로직 실행
 ``` c++
 void DoWorkerJob(ServerServiceRef& service)
 {
@@ -89,10 +89,10 @@ void DoWorkerJob(ServerServiceRef& service)
 		// 네트워크 입출력 처리 -> 인게임 로직까지 (패킷 핸들러에 의해)
 		service->GetIocpCore()->Dispatch(10);
 
-		// 예약된 일감 처리
+		// Job 큐에 예약된 일감 저장
 		ThreadManager::DistributeReservedJobs();
 
-		// 글로벌 큐
+		// Job 큐에 쌓인 일감 처리
 		ThreadManager::DoGlobalQueueWork();
 	}
 }
