@@ -98,6 +98,7 @@ void DoWorkerJob(ServerServiceRef& service)
 }
 ```
 ### **ThreadManager.cpp**
+(DistributeReservedJobs와 DoGlobalQueueWork 함수의 기능 복습 필요)
 - 쓰레드를 관리하는 클래스
 - 큐에 쌓인 작업을 실행하거나, 아직 큐에 쌓이지 못하고 대기 중인 작업들을 큐에 보관
 ``` c++
@@ -140,11 +141,93 @@ void ThreadManager::DistributeReservedJobs()
 (캡쳐 필요)
 ### **Service.cpp**
 - 리스너 소켓을 생성하여 클라이언트 접속 요청을 받는다.
-- 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시 까지 관리한다.
+- 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시까지 관리한다.
 ### **Listener.cpp**
 - 클라이언트로부터의 요청을 수신하기 위한 리스너 소켓을 생성 및 관리하는 클래스
 ### **Session.cpp**
-- 세션 클래스
+- IocpObject 클래스를 상속하는 클라이언트 세션 클래스
+- 작업 쓰레드에서 Dispatch 요청이 오면 전용 소켓 Connect, Disconnect, Send, Recv 기능을 수행한다.
+``` c++
+//...(중략)
+
+void Session::ProcessConnect()
+{
+	_connectEvent.owner = nullptr; // RELEASE_REF
+
+	_connected.store(true);
+
+	// 세션 등록
+	GetService()->AddSession(GetSessionRef());
+
+	// 컨텐츠 코드에서 재정의
+	OnConnected();
+
+	// 수신 등록
+	RegisterRecv();
+}
+
+void Session::ProcessDisconnect()
+{
+	_disconnectEvent.owner = nullptr; // RELEASE_REF
+
+	OnDisconnected(); // 컨텐츠 코드에서 재정의
+	GetService()->ReleaseSession(GetSessionRef());
+}
+
+void Session::ProcessRecv(int32 numOfBytes)
+{
+	_recvEvent.owner = nullptr; // RELEASE_REF
+
+	if (numOfBytes == 0)
+	{
+		Disconnect(L"Recv 0");
+		return;
+	}
+
+	if (_recvBuffer.OnWrite(numOfBytes) == false)
+	{
+		Disconnect(L"OnWrite Overflow");
+		return;
+	}
+
+	int32 dataSize = _recvBuffer.DataSize();
+	int32 processLen = OnRecv(_recvBuffer.ReadPos(), dataSize); // 컨텐츠 코드에서 재정의
+	if (processLen < 0 || dataSize < processLen || _recvBuffer.OnRead(processLen) == false)
+	{
+		Disconnect(L"OnRead Overflow");
+		return;
+	}
+	
+	// 커서 정리
+	_recvBuffer.Clean();
+
+	// 수신 등록
+	RegisterRecv();
+}
+
+void Session::ProcessSend(int32 numOfBytes)
+{
+	_sendEvent.owner = nullptr; // RELEASE_REF
+	_sendEvent.sendBuffers.clear(); // RELEASE_REF
+
+	if (numOfBytes == 0)
+	{
+		Disconnect(L"Send 0");
+		return;
+	}
+
+	// 컨텐츠 코드에서 재정의
+	OnSend(numOfBytes);
+
+	WRITE_LOCK;
+	if (_sendQueue.empty())
+		_sendRegistered.store(false);
+	else
+		RegisterSend();
+}
+
+//...(중략)
+```
 ### **SocketUtils.cpp**
 
 
