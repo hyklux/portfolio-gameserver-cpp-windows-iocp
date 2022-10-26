@@ -34,7 +34,7 @@ IOCP 기반의 서버로 여러 클라이언트 세션이 접속해 게임룸에
 (캡쳐 필요)
 ### **IocpCore.cpp**
 - CompletionPort를 생성하고 제어하는 코어 클래스
-- Dispatch(uint32 timeoutMs) 함수로 큐에 쌓여있는 네트워크 입출력 작업을 처리
+- Dispatch 함수로 큐에 쌓여있는 네트워크 입출력 작업을 처리
 ``` c++
 IocpCore::IocpCore()
 {
@@ -78,7 +78,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 }
 ```
 ### **GameServer.cpp**
-- Main Thread에서 DoWorkerJob(ServerServiceRef& service) 함수를 호출하여 서버 핵심 로직 실행
+- Main Thread에서 DoWorkerJob 함수를 호출하여 서버 핵심 로직을 실행한다.
 ``` c++
 void DoWorkerJob(ServerServiceRef& service)
 {
