@@ -701,6 +701,7 @@ bool DBConnectionPool::Connect(int32 connectionCount, const WCHAR* connectionStr
 ``` c++
 //...(중략)
 
+//SQL 드라이버와 연결 맺기
 bool DBConnection::Connect(SQLHENV henv, const WCHAR* connectionString)
 {
 	if (::SQLAllocHandle(SQL_HANDLE_DBC, henv, &_connection) != SQL_SUCCESS)
@@ -744,6 +745,7 @@ void DBConnection::Clear()
 	}
 }
 
+//쿼리문 실행
 bool DBConnection::Execute(const WCHAR* query)
 {
 	SQLRETURN ret = ::SQLExecDirectW(_statement, (SQLWCHAR*)query, SQL_NTSL);
