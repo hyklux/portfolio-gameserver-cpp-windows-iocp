@@ -142,6 +142,45 @@ void ThreadManager::DistributeReservedJobs()
 ### **Service.cpp**
 - 리스너 소켓을 생성하여 클라이언트 접속 요청을 받습니다.
 - 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시까지 관리합니다.
+``` c++
+//...(중략)
+
+void Service::Broadcast(SendBufferRef sendBuffer)
+{
+	WRITE_LOCK;
+	for (const auto& session : _sessions)
+	{
+		session->Send(sendBuffer);
+	}
+}
+
+SessionRef Service::CreateSession()
+{
+	SessionRef session = _sessionFactory();
+	session->SetService(shared_from_this());
+
+	if (_iocpCore->Register(session) == false)
+		return nullptr;
+
+	return session;
+}
+
+void Service::AddSession(SessionRef session)
+{
+	WRITE_LOCK;
+	_sessionCount++;
+	_sessions.insert(session);
+}
+
+void Service::ReleaseSession(SessionRef session)
+{
+	WRITE_LOCK;
+	ASSERT_CRASH(_sessions.erase(session) != 0);
+	_sessionCount--;
+}
+
+//...(중략)
+```
 ### **Listener.cpp**
 - 클라이언트로부터의 요청을 수신하기 위한 리스너 소켓을 생성 및 관리하는 클래스입니다.
 ### **Session.cpp**
@@ -337,39 +376,48 @@ void GameSession::OnRecvPacket(BYTE* buffer, int32 len)
 - 클라이언트와의 패킷 송수신을 처리합니다.
 - 실제 패킷에 대한 응답처리가 이 클래스에서 이루어집니다.
 ``` c++
-	//패킷 핸들러에 각 패킷마다 처리해야할 함수를 정의
-	static void Init()
-	{
-		for (int32 i = 0; i < UINT16_MAX; i++)
-			GPacketHandler[i] = Handle_INVALID;
-		GPacketHandler[PKT_C_LOGIN] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_LOGIN>(Handle_C_LOGIN, session, buffer, len); };
-		GPacketHandler[PKT_C_ENTER_GAME] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_ENTER_GAME>(Handle_C_ENTER_GAME, session, buffer, len); };
-		GPacketHandler[PKT_C_CHAT] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_CHAT>(Handle_C_CHAT, session, buffer, len); };
-	}
+//...(중략)
+
+//패킷 핸들러에 각 패킷마다 처리해야할 함수를 정의
+static void Init()
+{
+	for (int32 i = 0; i < UINT16_MAX; i++)
+		GPacketHandler[i] = Handle_INVALID;
+	GPacketHandler[PKT_C_LOGIN] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_LOGIN>(Handle_C_LOGIN, session, buffer, len); };
+	GPacketHandler[PKT_C_ENTER_GAME] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_ENTER_GAME>(Handle_C_ENTER_GAME, session, buffer, len); };
+	GPacketHandler[PKT_C_CHAT] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_CHAT>(Handle_C_CHAT, session, buffer, len); };
+}
 	
-	//패킷 핸들 요청이 오면 패킷Id에 맞게 등록해 두었던 함수를 실행
-	static bool HandlePacket(PacketSessionRef& session, BYTE* buffer, int32 len)
-	{
-		PacketHeader* header = reinterpret_cast<PacketHeader*>(buffer);
-		return GPacketHandler[header->id](session, buffer, len);
-	}
+//패킷 핸들 요청이 오면 패킷Id에 맞게 등록해 두었던 함수를 실행
+static bool HandlePacket(PacketSessionRef& session, BYTE* buffer, int32 len)
+{
+	PacketHeader* header = reinterpret_cast<PacketHeader*>(buffer);
+	return GPacketHandler[header->id](session, buffer, len);
+}
+
+//...(중략)
+```
 - 응답을 보내기 위해 SendBuffer를 만들어 보낸다.
 ```c++
-	template<typename T>
-	static SendBufferRef MakeSendBuffer(T& pkt, uint16 pktId)
-	{
-		const uint16 dataSize = static_cast<uint16>(pkt.ByteSizeLong());
-		const uint16 packetSize = dataSize + sizeof(PacketHeader);
+//...(중략)
 
-		SendBufferRef sendBuffer = GSendBufferManager->Open(packetSize);
-		PacketHeader* header = reinterpret_cast<PacketHeader*>(sendBuffer->Buffer());
-		header->size = packetSize;
-		header->id = pktId;
-		ASSERT_CRASH(pkt.SerializeToArray(&header[1], dataSize));
-		sendBuffer->Close(packetSize);
+template<typename T>
+static SendBufferRef MakeSendBuffer(T& pkt, uint16 pktId)
+{
+	const uint16 dataSize = static_cast<uint16>(pkt.ByteSizeLong());
+	const uint16 packetSize = dataSize + sizeof(PacketHeader);
 
-		return sendBuffer;
-	}
+	SendBufferRef sendBuffer = GSendBufferManager->Open(packetSize);
+	PacketHeader* header = reinterpret_cast<PacketHeader*>(sendBuffer->Buffer());
+	header->size = packetSize;
+	header->id = pktId;
+	ASSERT_CRASH(pkt.SerializeToArray(&header[1], dataSize));
+	sendBuffer->Close(packetSize);
+
+	return sendBuffer;
+}
+
+//...(중략)
 ```
 - 각 패킷Id에 따라 정의된 컨텐츠를 수행합니다.
 ``` c++
@@ -391,34 +439,30 @@ bool Handle_C_LOGIN(PacketSessionRef& session, Protocol::C_LOGIN& pkt)
 	// ID 발급 (DB 아이디가 아니고, 인게임 아이디)
 	static Atomic<uint64> idGenerator = 1;
 
-	{
-		auto player = loginPkt.add_players();
-		player->set_name(u8"DB에서긁어온이름1");
-		player->set_playertype(Protocol::PLAYER_TYPE_KNIGHT);
+	auto player = loginPkt.add_players();
+	player->set_name(u8"DB에서긁어온이름1");
+	player->set_playertype(Protocol::PLAYER_TYPE_KNIGHT);
 
-		PlayerRef playerRef = MakeShared<Player>();
-		playerRef->playerId = idGenerator++;
-		playerRef->name = player->name();
-		playerRef->type = player->playertype();
-		playerRef->ownerSession = gameSession;
+	PlayerRef playerRef = MakeShared<Player>();
+	playerRef->playerId = idGenerator++;
+	playerRef->name = player->name();
+	playerRef->type = player->playertype();
+	playerRef->ownerSession = gameSession;
 		
-		gameSession->_players.push_back(playerRef);
-	}
+	gameSession->_players.push_back(playerRef);
 
-	{
-		auto player = loginPkt.add_players();
-		player->set_name(u8"DB에서긁어온이름2");
-		player->set_playertype(Protocol::PLAYER_TYPE_MAGE);
+	auto player = loginPkt.add_players();
+	player->set_name(u8"DB에서긁어온이름2");
+	player->set_playertype(Protocol::PLAYER_TYPE_MAGE);
 
-		PlayerRef playerRef = MakeShared<Player>();
-		playerRef->playerId = idGenerator++;
-		playerRef->name = player->name();
-		playerRef->type = player->playertype();
-		playerRef->ownerSession = gameSession;
+	PlayerRef playerRef = MakeShared<Player>();
+	playerRef->playerId = idGenerator++;
+	playerRef->name = player->name();
+	playerRef->type = player->playertype();
+	playerRef->ownerSession = gameSession;
 
-		gameSession->_players.push_back(playerRef);
-	}
-
+	gameSession->_players.push_back(playerRef);
+	
 	auto sendBuffer = ClientPacketHandler::MakeSendBuffer(loginPkt);
 	session->Send(sendBuffer);
 
