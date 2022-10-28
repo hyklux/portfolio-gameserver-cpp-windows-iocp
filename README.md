@@ -274,14 +274,194 @@ bool SocketUtils::SetTcpNoDelay(SOCKET socket, bool flag)
 (캡쳐 필요)
 게임세션(=게임룸)에 대한 관리
 ### **GameSessionManager.cpp**
-### **GameSession.cpp**
+- 게임 세션에서는 현재 플레이어들과와 게임룸 정보를 관리합니다.
+``` c++
+GameSessionManager GSessionManager;
 
+void GameSessionManager::Add(GameSessionRef session)
+{
+	WRITE_LOCK;
+	_sessions.insert(session);
+}
+
+void GameSessionManager::Remove(GameSessionRef session)
+{
+	WRITE_LOCK;
+	_sessions.erase(session);
+}
+
+void GameSessionManager::Broadcast(SendBufferRef sendBuffer)
+{
+	WRITE_LOCK;
+	for (GameSessionRef session : _sessions)
+	{
+		session->Send(sendBuffer);
+	}
+}
+```
+### **GameSession.cpp**
+- 클라이언트로부터 받은 패킷을 ClientPacketHandler.cpp에 넘겨주어 패킷 처리를 하도록 유도합니다.
+``` c++
+void GameSession::OnConnected()
+{
+	GSessionManager.Add(static_pointer_cast<GameSession>(shared_from_this()));
+}
+
+void GameSession::OnDisconnected()
+{
+	GSessionManager.Remove(static_pointer_cast<GameSession>(shared_from_this()));
+
+	if (_currentPlayer)
+	{
+		if (auto room = _room.lock())
+			room->DoAsync(&Room::Leave, _currentPlayer);
+	}
+
+	_currentPlayer = nullptr;
+	_players.clear();
+}
+
+void GameSession::OnRecvPacket(BYTE* buffer, int32 len)
+{
+	PacketSessionRef session = GetPacketSessionRef();
+	PacketHeader* header = reinterpret_cast<PacketHeader*>(buffer);
+
+	// TODO : packetId 대역 체크
+	ClientPacketHandler::HandlePacket(session, buffer, len);
+}
+```
 
 # 패킷 처리
 (캡쳐 필요)
 ### **ClientPacketHandler.cpp**
-- 클라이언트와의 패킷 송수신 처리
-- 실제 개별 패킷에 대한 응답처리가 이 클래서에서 이루어진다.
+- 클라이언트와의 패킷 송수신을 처리합니다.
+- 실제 패킷에 대한 응답처리가 이 클래스에서 이루어집니다.
+``` c++
+	//패킷 핸들러에 각 패킷마다 처리해야할 함수를 정의
+	static void Init()
+	{
+		for (int32 i = 0; i < UINT16_MAX; i++)
+			GPacketHandler[i] = Handle_INVALID;
+		GPacketHandler[PKT_C_LOGIN] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_LOGIN>(Handle_C_LOGIN, session, buffer, len); };
+		GPacketHandler[PKT_C_ENTER_GAME] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_ENTER_GAME>(Handle_C_ENTER_GAME, session, buffer, len); };
+		GPacketHandler[PKT_C_CHAT] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_CHAT>(Handle_C_CHAT, session, buffer, len); };
+	}
+	
+	//패킷 핸들 요청이 오면 패킷Id에 맞게 등록해 두었던 함수를 실행
+	static bool HandlePacket(PacketSessionRef& session, BYTE* buffer, int32 len)
+	{
+		PacketHeader* header = reinterpret_cast<PacketHeader*>(buffer);
+		return GPacketHandler[header->id](session, buffer, len);
+	}
+- 응답을 보내기 위해 SendBuffer를 만들어 보낸다.
+```c++
+	template<typename T>
+	static SendBufferRef MakeSendBuffer(T& pkt, uint16 pktId)
+	{
+		const uint16 dataSize = static_cast<uint16>(pkt.ByteSizeLong());
+		const uint16 packetSize = dataSize + sizeof(PacketHeader);
+
+		SendBufferRef sendBuffer = GSendBufferManager->Open(packetSize);
+		PacketHeader* header = reinterpret_cast<PacketHeader*>(sendBuffer->Buffer());
+		header->size = packetSize;
+		header->id = pktId;
+		ASSERT_CRASH(pkt.SerializeToArray(&header[1], dataSize));
+		sendBuffer->Close(packetSize);
+
+		return sendBuffer;
+	}
+```
+- 각 패킷Id에 따라 정의된 컨텐츠를 수행합니다.
+``` c++
+//...(중략)
+
+//로그인 패킷 
+bool Handle_C_LOGIN(PacketSessionRef& session, Protocol::C_LOGIN& pkt)
+{
+	GameSessionRef gameSession = static_pointer_cast<GameSession>(session);
+
+	// TODO : Validation 체크
+
+	Protocol::S_LOGIN loginPkt;
+	loginPkt.set_success(true);
+
+	// DB에서 플레이 정보를 긁어온다
+	// GameSession에 플레이 정보를 저장 (메모리)
+
+	// ID 발급 (DB 아이디가 아니고, 인게임 아이디)
+	static Atomic<uint64> idGenerator = 1;
+
+	{
+		auto player = loginPkt.add_players();
+		player->set_name(u8"DB에서긁어온이름1");
+		player->set_playertype(Protocol::PLAYER_TYPE_KNIGHT);
+
+		PlayerRef playerRef = MakeShared<Player>();
+		playerRef->playerId = idGenerator++;
+		playerRef->name = player->name();
+		playerRef->type = player->playertype();
+		playerRef->ownerSession = gameSession;
+		
+		gameSession->_players.push_back(playerRef);
+	}
+
+	{
+		auto player = loginPkt.add_players();
+		player->set_name(u8"DB에서긁어온이름2");
+		player->set_playertype(Protocol::PLAYER_TYPE_MAGE);
+
+		PlayerRef playerRef = MakeShared<Player>();
+		playerRef->playerId = idGenerator++;
+		playerRef->name = player->name();
+		playerRef->type = player->playertype();
+		playerRef->ownerSession = gameSession;
+
+		gameSession->_players.push_back(playerRef);
+	}
+
+	auto sendBuffer = ClientPacketHandler::MakeSendBuffer(loginPkt);
+	session->Send(sendBuffer);
+
+	return true;
+}
+
+//게임 입장 패킷 처리
+bool Handle_C_ENTER_GAME(PacketSessionRef& session, Protocol::C_ENTER_GAME& pkt)
+{
+	GameSessionRef gameSession = static_pointer_cast<GameSession>(session);
+
+	uint64 index = pkt.playerindex();
+	// TODO : Validation
+
+	gameSession->_currentPlayer = gameSession->_players[index]; // READ_ONLY?
+	gameSession->_room = GRoom;
+
+	GRoom->DoAsync(&Room::Enter, gameSession->_currentPlayer);
+
+	Protocol::S_ENTER_GAME enterGamePkt;
+	enterGamePkt.set_success(true);
+	auto sendBuffer = ClientPacketHandler::MakeSendBuffer(enterGamePkt);
+	gameSession->_currentPlayer->ownerSession->Send(sendBuffer);
+
+	return true;
+}
+
+//채팅 패킷 처리
+bool Handle_C_CHAT(PacketSessionRef& session, Protocol::C_CHAT& pkt)
+{
+	std::cout << pkt.msg() << endl;
+
+	Protocol::S_CHAT chatPkt;
+	chatPkt.set_msg(pkt.msg());
+	auto sendBuffer = ClientPacketHandler::MakeSendBuffer(chatPkt);
+
+	GRoom->DoAsync(&Room::Broadcast, sendBuffer);
+
+	return true;
+}
+
+//...(중략)
+```
 
 
 # Job 큐
