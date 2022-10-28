@@ -33,8 +33,8 @@ IOCP 기반의 서버로 여러 클라이언트 세션이 접속해 게임룸에
 # IOCP 코어
 (캡쳐 필요)
 ### **IocpCore.cpp**
-- CompletionPort를 생성하고 제어하는 코어 클래스
-- Dispatch 함수로 큐에 쌓여있는 네트워크 입출력 작업을 처리
+- CompletionPort를 생성하고 제어하는 코어 클래스입니다.
+- Dispatch 함수로 큐에 쌓여있는 네트워크 입출력 작업을 처리합니다.
 ``` c++
 IocpCore::IocpCore()
 {
@@ -78,7 +78,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 }
 ```
 ### **GameServer.cpp**
-- Main Thread에서 DoWorkerJob 함수를 호출하여 서버 핵심 로직을 실행한다.
+- Main Thread에서 DoWorkerJob 함수를 호출하여 서버 핵심 로직을 실행합니다.
 ``` c++
 void DoWorkerJob(ServerServiceRef& service)
 {
@@ -99,8 +99,8 @@ void DoWorkerJob(ServerServiceRef& service)
 ```
 ### **ThreadManager.cpp**
 (DistributeReservedJobs와 DoGlobalQueueWork 함수의 기능 복습 필요)
-- 쓰레드를 관리하는 클래스
-- 큐에 쌓인 작업을 실행하거나, 아직 큐에 쌓이지 못하고 대기 중인 작업들을 큐에 보관
+- 쓰레드를 관리하는 클래스입니다.
+- 큐에 쌓인 작업을 실행하거나, 아직 큐에 쌓이지 못하고 대기 중인 작업을 큐에 보관합니다.
 ``` c++
 void ThreadManager::Launch(function<void(void)> callback)
 {
@@ -140,13 +140,13 @@ void ThreadManager::DistributeReservedJobs()
 # 서버 서비스
 (캡쳐 필요)
 ### **Service.cpp**
-- 리스너 소켓을 생성하여 클라이언트 접속 요청을 받는다.
-- 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시까지 관리한다.
+- 리스너 소켓을 생성하여 클라이언트 접속 요청을 받습니다.
+- 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시까지 관리합니다.
 ### **Listener.cpp**
-- 클라이언트로부터의 요청을 수신하기 위한 리스너 소켓을 생성 및 관리하는 클래스
+- 클라이언트로부터의 요청을 수신하기 위한 리스너 소켓을 생성 및 관리하는 클래스입니다.
 ### **Session.cpp**
-- IocpObject 클래스를 상속하는 클라이언트 세션 클래스
-- 작업 쓰레드에서 Dispatch 요청이 오면 전용 소켓 Connect, Disconnect, Send, Recv 기능을 수행한다.
+- IocpObject 클래스를 상속하는 클라이언트 세션 클래스입니다.
+- 작업 쓰레드에서 Dispatch 요청이 오면 전용 소켓 Connect, Disconnect, Send, Recv 기능을 수행합니다.
 ``` c++
 //...(중략)
 
@@ -229,7 +229,7 @@ void Session::ProcessSend(int32 numOfBytes)
 //...(중략)
 ```
 ### **SocketUtils.cpp**
-- 소켓 생성/해제 및 소켓에 대해 각종 옵션을 설정할 수 있는 유틸 클래스
+- 소켓 생성/해제 및 소켓에 대해 각종 옵션을 설정할 수 있는 유틸 클래스입니다.
 ``` c++
 //...(중략)
 
