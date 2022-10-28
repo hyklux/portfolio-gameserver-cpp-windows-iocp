@@ -510,9 +510,100 @@ bool Handle_C_CHAT(PacketSessionRef& session, Protocol::C_CHAT& pkt)
 
 # Job 큐
 (캡쳐 필요)
-### **JobQueue.cpp**
-### **JobTimer.cpp**
+- 각각의 쓰레드에서 개별적으로 작업을 하면 Lock을 잡아야 하는 일이 많아 성능이 느려질 수 있다.
+- 이 현상을 예방하기 위해 JobQueue에 일감을 푸시하고, JobQueue에서 쌓인 작업들을 일괄적으로 처리하는 Command 패턴을 도입했다.
+
 ### **Job.cpp**
+- 필요한 작업을 클래스 내부 Callback에 등록하며 생성한다. 
+``` c++
+class Job
+{
+public:
+	Job(CallbackType&& callback) : _callback(std::move(callback))
+	{
+	}
+
+	template<typename T, typename Ret, typename... Args>
+	Job(shared_ptr<T> owner, Ret(T::* memFunc)(Args...), Args&&... args)
+	{
+		_callback = [owner, memFunc, args...]()
+		{
+			(owner.get()->*memFunc)(args...);
+		};
+	}
+
+	void Execute()
+	{
+		_callback();
+	}
+
+private:
+	CallbackType _callback;
+};
+```
+### **JobQueue.cpp**
+- 일감을 푸시하거나 실행하는 함수로 되어 있습니다.
+``` c++
+//..(중략)
+
+//일감 
+void JobQueue::Push(JobRef job, bool pushOnly)
+{
+	const int32 prevCount = _jobCount.fetch_add(1);
+	_jobs.Push(job); // WRITE_LOCK
+
+	// 첫번째 Job을 넣은 쓰레드가 실행까지 담당
+	if (prevCount == 0)
+	{
+		// 이미 실행중인 JobQueue가 없으면 실행
+		if (LCurrentJobQueue == nullptr && pushOnly == false)
+		{
+			Execute();
+		}
+		else
+		{
+			// 여유 있는 다른 쓰레드가 실행하도록 GlobalQueue에 넘긴다
+			GGlobalQueue->Push(shared_from_this());
+		}
+	}
+}
+
+// 1) 일감이 너~무 몰리면?
+void JobQueue::Execute()
+{
+	LCurrentJobQueue = this;
+
+	while (true)
+	{
+		Vector<JobRef> jobs;
+		_jobs.PopAll(OUT jobs);
+
+		const int32 jobCount = static_cast<int32>(jobs.size());
+		for (int32 i = 0; i < jobCount; i++)
+			jobs[i]->Execute();
+
+		// 남은 일감이 0개라면 종료
+		if (_jobCount.fetch_sub(jobCount) == jobCount)
+		{
+			LCurrentJobQueue = nullptr;
+			return;
+		}
+
+		const uint64 now = ::GetTickCount64();
+		if (now >= LEndTickCount)
+		{
+			LCurrentJobQueue = nullptr;
+			// 여유 있는 다른 쓰레드가 실행하도록 GlobalQueue에 넘긴다
+			GGlobalQueue->Push(shared_from_this());
+			break;
+		}			
+	}
+}
+
+//..(중략)
+```
+### **JobTimer.cpp**
+
 
 
 # DB
