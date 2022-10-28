@@ -665,7 +665,96 @@ void JobTimer::Clear()
 
 # DB
 (캡쳐 필요)
-### **DBConnection.cpp**
 ### **DBConnectionPool.cpp**
+- DB 커넥션 연결 개수를 설정하여 서버 초기화 시 그 수 만큼 커넥션을 생성합니다.
+``` c++
+//..(중략)
+
+bool DBConnectionPool::Connect(int32 connectionCount, const WCHAR* connectionString)
+{
+	WRITE_LOCK;
+
+	if (::SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &_environment) != SQL_SUCCESS)
+		return false;
+
+	if (::SQLSetEnvAttr(_environment, SQL_ATTR_ODBC_VERSION, reinterpret_cast<SQLPOINTER>(SQL_OV_ODBC3), 0) != SQL_SUCCESS)
+		return false;
+
+	//설정한 수 만큼 커넥션 생성
+	for (int32 i = 0; i < connectionCount; i++)
+	{
+		DBConnection* connection = xnew<DBConnection>();
+		if (connection->Connect(_environment, connectionString) == false)
+			return false;
+
+		_connections.push_back(connection);
+	}
+
+	return true;
+}
+
+//..(중략)
+```
+### **DBConnection.cpp**
+- 실질적인 DB 커넥션 클래스입니다.
+- SQL 드라이버와 연결을 맺고 사용자가 요청한 쿼리를 실행하는 주체입니다.
+``` c++
+//...(중략)
+
+bool DBConnection::Connect(SQLHENV henv, const WCHAR* connectionString)
+{
+	if (::SQLAllocHandle(SQL_HANDLE_DBC, henv, &_connection) != SQL_SUCCESS)
+		return false;
+
+	WCHAR stringBuffer[MAX_PATH] = { 0 };
+	::wcscpy_s(stringBuffer, connectionString);
+
+	WCHAR resultString[MAX_PATH] = { 0 };
+	SQLSMALLINT resultStringLen = 0;
+
+	SQLRETURN ret = ::SQLDriverConnectW(
+		_connection,
+		NULL,
+		reinterpret_cast<SQLWCHAR*>(stringBuffer),
+		_countof(stringBuffer),
+		OUT reinterpret_cast<SQLWCHAR*>(resultString),
+		_countof(resultString),
+		OUT & resultStringLen,
+		SQL_DRIVER_NOPROMPT
+	);
+
+	if (::SQLAllocHandle(SQL_HANDLE_STMT, _connection, &_statement) != SQL_SUCCESS)
+		return false;
+
+	return (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO);
+}
+
+void DBConnection::Clear()
+{
+	if (_connection != SQL_NULL_HANDLE)
+	{
+		::SQLFreeHandle(SQL_HANDLE_DBC, _connection);
+		_connection = SQL_NULL_HANDLE;
+	}
+
+	if (_statement != SQL_NULL_HANDLE)
+	{
+		::SQLFreeHandle(SQL_HANDLE_STMT, _statement);
+		_statement = SQL_NULL_HANDLE;
+	}
+}
+
+bool DBConnection::Execute(const WCHAR* query)
+{
+	SQLRETURN ret = ::SQLExecDirectW(_statement, (SQLWCHAR*)query, SQL_NTSL);
+	if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO)
+		return true;
+
+	HandleError(ret);
+	return false;
+}
+
+//...(중략)
+```
 ### **DBModel.cpp**
 ### **DBSynchronizer.cpp**
