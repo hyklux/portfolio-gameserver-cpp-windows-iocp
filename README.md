@@ -510,8 +510,8 @@ bool Handle_C_CHAT(PacketSessionRef& session, Protocol::C_CHAT& pkt)
 
 # Job 큐
 (캡쳐 필요)
-- 각각의 쓰레드에서 개별적으로 작업을 하면 Lock을 잡아야 하는 일이 많아 성능이 느려질 수 있다.
-- 이 현상을 예방하기 위해 JobQueue에 일감을 푸시하고, JobQueue에서 쌓인 작업들을 일괄적으로 처리하는 Command 패턴을 도입했다.
+- 각각의 쓰레드에서 개별적으로 작업을 하면 Lock을 잡아야 하는 일이 많아 성능이 느려질 수 있습니다.
+- 이 현상을 예방하기 위해 JobQueue에 일감을 푸시하고, JobQueue에서 쌓인 작업들을 일괄적으로 처리하는 Command 패턴을 도입했습니다.
 
 ### **Job.cpp**
 - 필요한 작업을 클래스 내부 Callback에 등록하며 생성한다. 
