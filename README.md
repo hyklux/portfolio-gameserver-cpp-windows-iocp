@@ -259,10 +259,15 @@ void Session::ProcessSend(int32 numOfBytes)
 	OnSend(numOfBytes);
 
 	WRITE_LOCK;
+	
 	if (_sendQueue.empty())
+	{
 		_sendRegistered.store(false);
+	}
 	else
+	{
 		RegisterSend();
+	}
 }
 
 //...(중략)
@@ -623,18 +628,16 @@ void JobTimer::Distribute(uint64 now)
 
 	Vector<TimerItem> items;
 
+	WRITE_LOCK;
+
+	while (_items.empty() == false)
 	{
-		WRITE_LOCK;
+		const TimerItem& timerItem = _items.top();
+		if (now < timerItem.executeTick)
+			break;
 
-		while (_items.empty() == false)
-		{
-			const TimerItem& timerItem = _items.top();
-			if (now < timerItem.executeTick)
-				break;
-
-			items.push_back(timerItem);
-			_items.pop();
-		}
+		items.push_back(timerItem);
+		_items.pop();
 	}
 
 	for (TimerItem& item : items)
