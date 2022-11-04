@@ -761,5 +761,3 @@ bool DBConnection::Execute(const WCHAR* query)
 
 //...(중략)
 ```
-### **DBModel.cpp**
-### **DBSynchronizer.cpp**
