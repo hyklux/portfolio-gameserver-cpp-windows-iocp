@@ -1,14 +1,11 @@
 # portfolio-gameserver-cpp-windows-iocp
-C++ 게임서버 포트폴리오(Windows IOCP Server)
+C++ 게임 서버 프레임워크 포트폴리오(Windows IOCP Server)
 
 # 소개
-C++ 게임서버 포트폴리오입니다.
+C++ 게임 서버 프레임워크 포트폴리오입니다.
 
 
 IOCP 기반의 서버로 여러 클라이언트 세션이 접속해 게임룸에서 패킷을 송수신하는 기능까지 구현된 프로그램입니다.
-
-
-(실제 인게임 로직은 향후 추가 예정입니다)
 
 
 # 기능
@@ -31,7 +28,6 @@ IOCP 기반의 서버로 여러 클라이언트 세션이 접속해 게임룸에
 
 
 # IOCP 코어
-(캡쳐 필요)
 ### **IocpCore.cpp**
 - CompletionPort를 생성하고 제어하는 코어 클래스입니다.
 - Dispatch 함수로 큐에 쌓여있는 네트워크 입출력 작업을 처리합니다.
@@ -138,7 +134,6 @@ void ThreadManager::DistributeReservedJobs()
 }
 ```
 # 서버 서비스
-(캡쳐 필요)
 ### **Service.cpp**
 - 리스너 소켓을 생성하여 클라이언트 접속 요청을 받습니다.
 - 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시까지 관리합니다.
@@ -197,8 +192,8 @@ void Session::ProcessConnect()
 
 	// 세션 등록
 	GetService()->AddSession(GetSessionRef());
-
-	// 컨텐츠 코드에서 재정의
+	
+	// 연결 시 필요한 처리 수행
 	OnConnected();
 
 	// 수신 등록
@@ -209,7 +204,8 @@ void Session::ProcessDisconnect()
 {
 	_disconnectEvent.owner = nullptr; // RELEASE_REF
 
-	OnDisconnected(); // 컨텐츠 코드에서 재정의
+	OnDisconnected();
+	
 	GetService()->ReleaseSession(GetSessionRef());
 }
 
@@ -230,7 +226,7 @@ void Session::ProcessRecv(int32 numOfBytes)
 	}
 
 	int32 dataSize = _recvBuffer.DataSize();
-	int32 processLen = OnRecv(_recvBuffer.ReadPos(), dataSize); // 컨텐츠 코드에서 재정의
+	int32 processLen = OnRecv(_recvBuffer.ReadPos(), dataSize);
 	if (processLen < 0 || dataSize < processLen || _recvBuffer.OnRead(processLen) == false)
 	{
 		Disconnect(L"OnRead Overflow");
@@ -254,8 +250,7 @@ void Session::ProcessSend(int32 numOfBytes)
 		Disconnect(L"Send 0");
 		return;
 	}
-
-	// 컨텐츠 코드에서 재정의
+	
 	OnSend(numOfBytes);
 
 	WRITE_LOCK;
@@ -315,8 +310,7 @@ bool SocketUtils::SetTcpNoDelay(SOCKET socket, bool flag)
 
 
 # 게임 세션 관리
-(캡쳐 필요)
-게임세션(=게임룸)에 대한 관리
+게임 세션 관리
 ### **GameSessionManager.cpp**
 - 게임 세션에서는 현재 플레이어들과와 게임룸 정보를 관리합니다.
 ``` c++
@@ -370,7 +364,6 @@ void GameSession::OnRecvPacket(BYTE* buffer, int32 len)
 	PacketSessionRef session = GetPacketSessionRef();
 	PacketHeader* header = reinterpret_cast<PacketHeader*>(buffer);
 
-	// TODO : packetId 대역 체크
 	ClientPacketHandler::HandlePacket(session, buffer, len);
 }
 ```
@@ -388,6 +381,7 @@ static void Init()
 {
 	for (int32 i = 0; i < UINT16_MAX; i++)
 		GPacketHandler[i] = Handle_INVALID;
+		
 	GPacketHandler[PKT_C_LOGIN] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_LOGIN>(Handle_C_LOGIN, session, buffer, len); };
 	GPacketHandler[PKT_C_ENTER_GAME] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_ENTER_GAME>(Handle_C_ENTER_GAME, session, buffer, len); };
 	GPacketHandler[PKT_C_CHAT] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_CHAT>(Handle_C_CHAT, session, buffer, len); };
@@ -433,19 +427,14 @@ bool Handle_C_LOGIN(PacketSessionRef& session, Protocol::C_LOGIN& pkt)
 {
 	GameSessionRef gameSession = static_pointer_cast<GameSession>(session);
 
-	// TODO : Validation 체크
-
 	Protocol::S_LOGIN loginPkt;
 	loginPkt.set_success(true);
 
-	// DB에서 플레이 정보를 긁어온다
-	// GameSession에 플레이 정보를 저장 (메모리)
-
-	// ID 발급 (DB 아이디가 아니고, 인게임 아이디)
+	// ID 발급
 	static Atomic<uint64> idGenerator = 1;
 
 	auto player = loginPkt.add_players();
-	player->set_name(u8"DB에서긁어온이름1");
+	player->set_name(u8"PlayerName1");
 	player->set_playertype(Protocol::PLAYER_TYPE_KNIGHT);
 
 	PlayerRef playerRef = MakeShared<Player>();
@@ -457,7 +446,7 @@ bool Handle_C_LOGIN(PacketSessionRef& session, Protocol::C_LOGIN& pkt)
 	gameSession->_players.push_back(playerRef);
 
 	auto player = loginPkt.add_players();
-	player->set_name(u8"DB에서긁어온이름2");
+	player->set_name(u8"PlayerName2");
 	player->set_playertype(Protocol::PLAYER_TYPE_MAGE);
 
 	PlayerRef playerRef = MakeShared<Player>();
@@ -516,7 +505,7 @@ bool Handle_C_CHAT(PacketSessionRef& session, Protocol::C_CHAT& pkt)
 # Job 큐
 (캡쳐 필요)
 - 각각의 쓰레드에서 개별적으로 작업을 하면 Lock을 잡아야 하는 일이 많아 성능이 느려질 수 있습니다.
-- 이 현상을 예방하기 위해 JobQueue에 일감을 푸시하고, JobQueue에서 쌓인 작업들을 일괄적으로 처리하는 Command 패턴을 도입했습니다.
+- 이 현상을 예방하기 위해 JobQueue에 일감을 푸시하고, JobQueue에서 쌓인 작업들을 일괄적으로 처리합니다.
 
 ### **Job.cpp**
 - 필요한 작업을 클래스 내부 Callback에 등록하며 생성한다. 
@@ -573,7 +562,6 @@ void JobQueue::Push(JobRef job, bool pushOnly)
 	}
 }
 
-// 1) 일감이 너~무 몰리면?
 void JobQueue::Execute()
 {
 	LCurrentJobQueue = this;
@@ -667,7 +655,6 @@ void JobTimer::Clear()
 
 
 # DB
-(캡쳐 필요)
 ### **DBConnectionPool.cpp**
 - DB 커넥션 연결 개수를 설정하여 서버 초기화 시 그 수 만큼 커넥션을 생성합니다.
 ``` c++
