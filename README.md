@@ -74,7 +74,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 }
 ```
 ### **GameServer.cpp**
-- Main Thread에서 DoWorkerJob 함수를 호출하여 서버 핵심 로직을 실행합니다.
+- DoWorkerJob 함수를 호출하여 서버 핵심 로직을 실행합니다.
 ``` c++
 void DoWorkerJob(ServerServiceRef& service)
 {
