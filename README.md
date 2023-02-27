@@ -82,13 +82,13 @@ void DoWorkerJob(ServerServiceRef& service)
 	{
 		LEndTickCount = ::GetTickCount64() + WORKER_TICK;
 
-		// 네트워크 입출력 처리 -> 인게임 로직까지 (패킷 핸들러에 의해)
+		// 네트워크 입출력 처리하여 패킷 핸들러 명령 JobQueue에 추가
 		service->GetIocpCore()->Dispatch(10);
 
-		// Job 큐에 예약된 일감 저장
+		// 예약된 일감(JobTimer) 처리
 		ThreadManager::DistributeReservedJobs();
 
-		// Job 큐에 쌓인 일감 처리
+		// 큐에 쌓인 일감 처리
 		ThreadManager::DoGlobalQueueWork();
 	}
 }
