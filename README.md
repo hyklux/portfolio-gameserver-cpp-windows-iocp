@@ -309,7 +309,6 @@ bool SocketUtils::SetTcpNoDelay(SOCKET socket, bool flag)
 
 
 # 게임 세션 관리
-게임 세션 관리
 ### **GameSessionManager.cpp**
 - 게임 세션에서는 현재 플레이어들과와 게임룸 정보를 관리합니다.
 ``` c++
