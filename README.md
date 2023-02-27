@@ -12,7 +12,7 @@ C++ Windows IOCP 기반 게임서버 프레임워크입니다.
 :heavy_check_mark: IOCP 모듈
 
 
-:heavy_check_mark: 서버 서비스 모
+:heavy_check_mark: 서비스 모
 
 
 :heavy_check_mark: 게임 세션 관리
@@ -132,7 +132,7 @@ void ThreadManager::DistributeReservedJobs()
 	GJobTimer->Distribute(now);
 }
 ```
-# 서버 서비스
+# 서비스 모듈
 ### **Service.cpp**
 - 리스너 소켓을 생성하여 클라이언트 접속 요청을 받습니다.
 - 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시까지 관리합니다.
