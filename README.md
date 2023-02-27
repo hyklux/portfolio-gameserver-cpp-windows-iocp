@@ -1,8 +1,8 @@
 # portfolio-gameserver-cpp-windows-iocp
-C++ Windows IOCP 기반 게임서버 프레임워크 포트폴리오
+C++ Windows IOCP 기반 게임서버 프레임워크
 
 # 소개
-C++ Windows IOCP 기반 게임서버 프레임워크 포트폴리오입니다.
+C++ Windows IOCP 기반 게임서버 프레임워크입니다.
 
 
 클라이언트 세션이 접속해 게임룸에서 패킷을 송수신하는 기능까지 구현된 프로그램입니다.
