@@ -1,18 +1,18 @@
 # portfolio-gameserver-cpp-windows-iocp
-C++ 게임 서버 프레임워크 포트폴리오(Windows IOCP Server)
+C++ Windows IOCP 기반 게임서버 프레임워크
 
 # 소개
-C++ 게임 서버 프레임워크 포트폴리오입니다.
+C++ Windows IOCP 기반 게임서버 프레임워크입니다.
 
 
-IOCP 기반의 서버로 여러 클라이언트 세션이 접속해 게임룸에서 패킷을 송수신하는 기능까지 구현된 프로그램입니다.
+클라이언트 세션이 접속해 게임룸에서 패킷을 송수신하는 기능까지 구현된 프로그램입니다.
 
 
 # 기능
-:heavy_check_mark: IOCP 코어
+:heavy_check_mark: IOCP 모듈
 
 
-:heavy_check_mark: 서버 서비스
+:heavy_check_mark: 서비스 모
 
 
 :heavy_check_mark: 게임 세션 관리
@@ -74,7 +74,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 }
 ```
 ### **GameServer.cpp**
-- Main Thread에서 DoWorkerJob 함수를 호출하여 서버 핵심 로직을 실행합니다.
+- DoWorkerJob 함수를 호출하여 서버 핵심 로직을 실행합니다.
 ``` c++
 void DoWorkerJob(ServerServiceRef& service)
 {
@@ -82,13 +82,13 @@ void DoWorkerJob(ServerServiceRef& service)
 	{
 		LEndTickCount = ::GetTickCount64() + WORKER_TICK;
 
-		// 네트워크 입출력 처리 -> 인게임 로직까지 (패킷 핸들러에 의해)
+		// 네트워크 입출력 처리하여 패킷 핸들러 명령 JobQueue에 추가
 		service->GetIocpCore()->Dispatch(10);
 
-		// Job 큐에 예약된 일감 저장
+		// 예약된 일감(JobTimer) 처리
 		ThreadManager::DistributeReservedJobs();
 
-		// Job 큐에 쌓인 일감 처리
+		// 큐에 쌓인 일감 처리
 		ThreadManager::DoGlobalQueueWork();
 	}
 }
@@ -132,7 +132,7 @@ void ThreadManager::DistributeReservedJobs()
 	GJobTimer->Distribute(now);
 }
 ```
-# 서버 서비스
+# 서비스 모듈
 ### **Service.cpp**
 - 리스너 소켓을 생성하여 클라이언트 접속 요청을 받습니다.
 - 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시까지 관리합니다.
@@ -309,7 +309,6 @@ bool SocketUtils::SetTcpNoDelay(SOCKET socket, bool flag)
 
 
 # 게임 세션 관리
-게임 세션 관리
 ### **GameSessionManager.cpp**
 - 게임 세션에서는 현재 플레이어들과와 게임룸 정보를 관리합니다.
 ``` c++
