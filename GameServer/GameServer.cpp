@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "ThreadManager.h"
 #include "Service.h"
 #include "Session.h"
@@ -31,10 +31,10 @@ void DoWorkerJob(ServerServiceRef& service)
 		// 네트워크 입출력 처리 -> 인게임 로직까지 (패킷 핸들러에 의해)
 		service->GetIocpCore()->Dispatch(10);
 
-		// 예약된 일감 처리
+		// 예약된 일감(JobTimer) 처리 
 		ThreadManager::DistributeReservedJobs();
 
-		// 글로벌 큐
+		// 큐에 쌓인 일감 처리
 		ThreadManager::DoGlobalQueueWork();
 	}
 }
