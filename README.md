@@ -9,10 +9,10 @@ C++ Windows IOCP 기반 게임서버 프레임워크입니다.
 
 
 # 기능
-:heavy_check_mark: IOCP 코어
+:heavy_check_mark: IOCP 모듈
 
 
-:heavy_check_mark: 서버 서비스
+:heavy_check_mark: 서버 서비스 모
 
 
 :heavy_check_mark: 게임 세션 관리
