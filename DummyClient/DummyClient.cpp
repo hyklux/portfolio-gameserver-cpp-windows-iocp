@@ -27,7 +27,6 @@ public:
 		PacketSessionRef session = GetPacketSessionRef();
 		PacketHeader* header = reinterpret_cast<PacketHeader*>(buffer);
 
-		// TODO : packetId 대역 체크
 		ServerPacketHandler::HandlePacket(session, buffer, len);
 	}
 

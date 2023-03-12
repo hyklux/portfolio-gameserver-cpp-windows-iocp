@@ -28,19 +28,20 @@ void DoWorkerJob(ServerServiceRef& service)
 	{
 		LEndTickCount = ::GetTickCount64() + WORKER_TICK;
 
-		// 네트워크 입출력 처리 -> 인게임 로직까지 (패킷 핸들러에 의해)
+		// 네트워크 입출력 처리
 		service->GetIocpCore()->Dispatch(10);
 
 		// 예약된 일감 처리
 		ThreadManager::DistributeReservedJobs();
 
-		// 글로벌 큐
+		// 글로벌 큐에 쌓인 일감 처리 (게임 로직 일감 위주)
 		ThreadManager::DoGlobalQueueWork();
 	}
 }
 
 int main()
 {
+	/*
 	ASSERT_CRASH(GDBConnectionPool->Connect(1, L"Driver={SQL Server Native Client 11.0};Server=(localdb)\\MSSQLLocalDB;Database=ServerDb;Trusted_Connection=Yes;"));
 
 	DBConnection* dbConn = GDBConnectionPool->Pop();
@@ -48,7 +49,7 @@ int main()
 	dbSync.Synchronize(L"GameDB.xml");
 
 	{
-		WCHAR name[] = L"Rookiss";
+		WCHAR name[] = L"Hongyeol";
 
 		SP::InsertGold insertGold(*dbConn);
 		insertGold.In_Gold(100);
@@ -79,13 +80,14 @@ int main()
 				L"ID[%d] Gold[%d] Name[%s]\n", id, gold, name);
 		}
 	}
+	*/
 
 	ClientPacketHandler::Init();
 
 	ServerServiceRef service = MakeShared<ServerService>(
 		NetAddress(L"127.0.0.1", 7777),
 		MakeShared<IocpCore>(),
-		MakeShared<GameSession>, // TODO : SessionManager 등
+		MakeShared<GameSession>,
 		100);
 
 	ASSERT_CRASH(service->Start());
