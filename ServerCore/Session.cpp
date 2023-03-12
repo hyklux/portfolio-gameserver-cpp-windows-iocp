@@ -22,20 +22,22 @@ void Session::Send(SendBufferRef sendBuffer)
 	if (IsConnected() == false)
 		return;
 
-	bool registerSend = false;
-
 	// 현재 RegisterSend가 걸리지 않은 상태라면, 걸어준다
+	WRITE_LOCK;
+
+	_sendQueue.push(sendBuffer);
+
+	//if (_sendRegistered == false)
+	//{
+	//	_sendRegistered = true;
+	//	RegisterSend();
+	//}
+
+	//이 코드는 바로 위 주석처리된 코드와 내용이 동일하다.
+	if (_sendRegistered.exchange(true) == false)
 	{
-		WRITE_LOCK;
-
-		_sendQueue.push(sendBuffer);
-
-		if (_sendRegistered.exchange(true) == false)
-			registerSend = true;
-	}
-	
-	if (registerSend)
 		RegisterSend();
+	}
 }
 
 bool Session::Connect()
@@ -144,7 +146,7 @@ void Session::RegisterRecv()
 
 	DWORD numOfBytes = 0;
 	DWORD flags = 0;
-	if (SOCKET_ERROR == ::WSARecv(_socket, &wsaBuf, 1, OUT &numOfBytes, OUT &flags, &_recvEvent, nullptr))
+	if (SOCKET_ERROR == ::WSARecv(_socket, &wsaBuf, 1, OUT & numOfBytes, OUT & flags, &_recvEvent, nullptr))
 	{
 		int32 errorCode = ::WSAGetLastError();
 		if (errorCode != WSA_IO_PENDING)
@@ -173,13 +175,13 @@ void Session::RegisterSend()
 			SendBufferRef sendBuffer = _sendQueue.front();
 
 			writeSize += sendBuffer->WriteSize();
-			// TODO : 예외 체크
 
 			_sendQueue.pop();
 			_sendEvent.sendBuffers.push_back(sendBuffer);
 		}
 	}
 
+	// RegisterSend는 하나의 스레드에서만 접근 가능하기 때문에 여기선 LOCK을 잡을 필요가 없다.
 	// Scatter-Gather (흩어져 있는 데이터들을 모아서 한 방에 보낸다)
 	Vector<WSABUF> wsaBufs;
 	wsaBufs.reserve(_sendEvent.sendBuffers.size());
@@ -192,7 +194,7 @@ void Session::RegisterSend()
 	}
 
 	DWORD numOfBytes = 0;
-	if (SOCKET_ERROR == ::WSASend(_socket, wsaBufs.data(), static_cast<DWORD>(wsaBufs.size()), OUT &numOfBytes, 0, &_sendEvent, nullptr))
+	if (SOCKET_ERROR == ::WSASend(_socket, wsaBufs.data(), static_cast<DWORD>(wsaBufs.size()), OUT & numOfBytes, 0, &_sendEvent, nullptr))
 	{
 		int32 errorCode = ::WSAGetLastError();
 		if (errorCode != WSA_IO_PENDING)
@@ -214,7 +216,7 @@ void Session::ProcessConnect()
 	// 세션 등록
 	GetService()->AddSession(GetSessionRef());
 
-	// 컨텐츠 코드에서 재정의
+	// 연결 시 필요한 처리 수행
 	OnConnected();
 
 	// 수신 등록
@@ -225,7 +227,8 @@ void Session::ProcessDisconnect()
 {
 	_disconnectEvent.owner = nullptr; // RELEASE_REF
 
-	OnDisconnected(); // 컨텐츠 코드에서 재정의
+	OnDisconnected();
+
 	GetService()->ReleaseSession(GetSessionRef());
 }
 
@@ -246,13 +249,13 @@ void Session::ProcessRecv(int32 numOfBytes)
 	}
 
 	int32 dataSize = _recvBuffer.DataSize();
-	int32 processLen = OnRecv(_recvBuffer.ReadPos(), dataSize); // 컨텐츠 코드에서 재정의
+	int32 processLen = OnRecv(_recvBuffer.ReadPos(), dataSize);
 	if (processLen < 0 || dataSize < processLen || _recvBuffer.OnRead(processLen) == false)
 	{
 		Disconnect(L"OnRead Overflow");
 		return;
 	}
-	
+
 	// 커서 정리
 	_recvBuffer.Clean();
 
@@ -274,11 +277,15 @@ void Session::ProcessSend(int32 numOfBytes)
 	// 컨텐츠 코드에서 재정의
 	OnSend(numOfBytes);
 
-	WRITE_LOCK;
+	WRITE_LOCK; //_sendQueue에 접근할 때는 LOCK을 걸어주어야 한다.
 	if (_sendQueue.empty())
+	{
 		_sendRegistered.store(false);
+	}
 	else
+	{
 		RegisterSend();
+	}
 }
 
 void Session::HandleError(int32 errorCode)
@@ -290,7 +297,6 @@ void Session::HandleError(int32 errorCode)
 		Disconnect(L"HandleError");
 		break;
 	default:
-		// TODO : Log
 		cout << "Handle Error : " << errorCode << endl;
 		break;
 	}
