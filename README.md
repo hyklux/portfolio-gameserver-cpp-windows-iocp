@@ -1,5 +1,5 @@
 # portfolio-gameserver-cpp-windows-iocp
-Game server implemented based on Windows IOCP 
+Game server implemented using Windows IOCP 
 
 # Introduction
 This is a Windows IOCP based game server that allows multiple client sessions to connect and transmit/receive packets in the game room.
