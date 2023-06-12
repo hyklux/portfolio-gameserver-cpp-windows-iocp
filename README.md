@@ -1,40 +1,33 @@
 # portfolio-gameserver-cpp-windows-iocp
-C++ 게임서버 포트폴리오(Windows IOCP Server)
+Game server implemented based on Windows IOCP 
 
-# 소개
-C++ 게임서버 포트폴리오입니다.
-
-
-IOCP 기반의 서버로 여러 클라이언트 세션이 접속해 게임룸에서 패킷을 송수신하는 기능까지 구현된 프로그램입니다.
+# Introduction
+This is a Windows IOCP based game server that allows multiple client sessions to connect and transmit/receive packets in the game room.
 
 
-(실제 인게임 로직은 향후 추가 예정입니다)
+# Implmentations
+:heavy_check_mark: IOCP Core
 
 
-# 기능
-:heavy_check_mark: IOCP 코어
+:heavy_check_mark: Server service
 
 
-:heavy_check_mark: 서버 서비스
+:heavy_check_mark: Session management
 
 
-:heavy_check_mark: 게임 세션 관리
+:heavy_check_mark: Packet processing
 
 
-:heavy_check_mark: 패킷 처리
+:heavy_check_mark: Job queue
 
 
-:heavy_check_mark: Job 큐
-
-
-:heavy_check_mark: DB
+:heavy_check_mark: Database
 
 
 # IOCP 코어
-(캡쳐 필요)
 ### **IocpCore.cpp**
-- CompletionPort를 생성하고 제어하는 코어 클래스입니다.
-- Dispatch 함수로 큐에 쌓여있는 네트워크 입출력 작업을 처리합니다.
+- This is the core class that creates and controls CompletionPort.
+- It processes queued network I/O operations with the Dispatch function.
 ``` c++
 IocpCore::IocpCore()
 {
