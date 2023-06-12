@@ -9,7 +9,7 @@ This is a Windows IOCP based game server that allows multiple client sessions to
 :heavy_check_mark: IOCP Core
 
 
-:heavy_check_mark: Server service
+:heavy_check_mark: Service
 
 
 :heavy_check_mark: Session management
@@ -24,7 +24,7 @@ This is a Windows IOCP based game server that allows multiple client sessions to
 :heavy_check_mark: Database
 
 
-# IOCP 코어
+# IOCP Core
 ### **IocpCore.cpp**
 - This is the core class that creates and controls CompletionPort.
 - It processes queued network I/O operations with the Dispatch function.
@@ -46,7 +46,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 	ULONG_PTR key = 0;	
 	IocpEvent* iocpEvent = nullptr;
 
-	//작업 실행 가능한 스레드 확인
+	//Check the thread available to run the task
 	if (::GetQueuedCompletionStatus(_iocpHandle, OUT &numOfBytes, OUT &key, OUT reinterpret_cast<LPOVERLAPPED*>(&iocpEvent), timeoutMs))
 	{
 		IocpObjectRef iocpObject = iocpEvent->owner;
@@ -60,7 +60,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 		case WAIT_TIMEOUT:
 			return false;
 		default:
-			//실행
+			//Execute
 			IocpObjectRef iocpObject = iocpEvent->owner;
 			iocpObject->Dispatch(iocpEvent, numOfBytes);
 			break;
@@ -71,7 +71,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs)
 }
 ```
 ### **GameServer.cpp**
-- Main Thread에서 DoWorkerJob 함수를 호출하여 서버 핵심 로직을 실행합니다.
+- The main thread executes the server core logic by calling the DoWorkerJob function.
 ``` c++
 void DoWorkerJob(ServerServiceRef& service)
 {
@@ -79,21 +79,19 @@ void DoWorkerJob(ServerServiceRef& service)
 	{
 		LEndTickCount = ::GetTickCount64() + WORKER_TICK;
 
-		// 네트워크 입출력 처리 -> 인게임 로직까지 (패킷 핸들러에 의해)
+		// Handle Network I/O
 		service->GetIocpCore()->Dispatch(10);
 
-		// Job 큐에 예약된 일감 저장
+		// Save scheduled work in the job queue
 		ThreadManager::DistributeReservedJobs();
 
-		// Job 큐에 쌓인 일감 처리
+		// Handle tasks accumulated in the job queue
 		ThreadManager::DoGlobalQueueWork();
 	}
 }
 ```
 ### **ThreadManager.cpp**
-(DistributeReservedJobs와 DoGlobalQueueWork 함수의 기능 복습 필요)
-- 쓰레드를 관리하는 클래스입니다.
-- 큐에 쌓인 작업을 실행하거나, 아직 큐에 쌓이지 못하고 대기 중인 작업을 큐에 보관합니다.
+- Executes queued tasks, or queues pending tasks that have not yet been queued.
 ``` c++
 void ThreadManager::Launch(function<void(void)> callback)
 {
@@ -130,13 +128,12 @@ void ThreadManager::DistributeReservedJobs()
 	GJobTimer->Distribute(now);
 }
 ```
-# 서버 서비스
-(캡쳐 필요)
+# Service
 ### **Service.cpp**
-- 리스너 소켓을 생성하여 클라이언트 접속 요청을 받습니다.
-- 클라이언트 접속 요청 시 클라이언트 세션 객체를 생성하고 접속 해제 시까지 관리합니다.
+- Creates a listener socket to receive client connection requests.
+- When requested connection from a client, a client session object is created and managed until the connection is disconnected.
 ``` c++
-//...(중략)
+//...(omitted)
 
 void Service::Broadcast(SendBufferRef sendBuffer)
 {
@@ -172,15 +169,15 @@ void Service::ReleaseSession(SessionRef session)
 	_sessionCount--;
 }
 
-//...(중략)
+//...(omitted)
 ```
 ### **Listener.cpp**
-- 클라이언트로부터의 요청을 수신하기 위한 리스너 소켓을 생성 및 관리하는 클래스입니다.
+- A class that creates and manages listener sockets to receive requests from clients.
 ### **Session.cpp**
-- IocpObject 클래스를 상속하는 클라이언트 세션 클래스입니다.
-- 작업 쓰레드에서 Dispatch 요청이 오면 전용 소켓 Connect, Disconnect, Send, Recv 기능을 수행합니다.
+- A client session class that inherits from the IocpObject class.
+- When a Dispatch request is received from the work thread, the dedicated socket performs Connect, Disconnect, Send, and Recv functions.
 ``` c++
-//...(중략)
+//...(omitted)
 
 void Session::ProcessConnect()
 {
@@ -188,13 +185,10 @@ void Session::ProcessConnect()
 
 	_connected.store(true);
 
-	// 세션 등록
 	GetService()->AddSession(GetSessionRef());
 
-	// 컨텐츠 코드에서 재정의
 	OnConnected();
 
-	// 수신 등록
 	RegisterRecv();
 }
 
@@ -202,7 +196,7 @@ void Session::ProcessDisconnect()
 {
 	_disconnectEvent.owner = nullptr; // RELEASE_REF
 
-	OnDisconnected(); // 컨텐츠 코드에서 재정의
+	OnDisconnected();
 	GetService()->ReleaseSession(GetSessionRef());
 }
 
@@ -223,17 +217,15 @@ void Session::ProcessRecv(int32 numOfBytes)
 	}
 
 	int32 dataSize = _recvBuffer.DataSize();
-	int32 processLen = OnRecv(_recvBuffer.ReadPos(), dataSize); // 컨텐츠 코드에서 재정의
+	int32 processLen = OnRecv(_recvBuffer.ReadPos(), dataSize);
 	if (processLen < 0 || dataSize < processLen || _recvBuffer.OnRead(processLen) == false)
 	{
 		Disconnect(L"OnRead Overflow");
 		return;
 	}
 	
-	// 커서 정리
 	_recvBuffer.Clean();
 
-	// 수신 등록
 	RegisterRecv();
 }
 
@@ -248,7 +240,6 @@ void Session::ProcessSend(int32 numOfBytes)
 		return;
 	}
 
-	// 컨텐츠 코드에서 재정의
 	OnSend(numOfBytes);
 
 	WRITE_LOCK;
@@ -263,12 +254,12 @@ void Session::ProcessSend(int32 numOfBytes)
 	}
 }
 
-//...(중략)
+//...(omitted)
 ```
 ### **SocketUtils.cpp**
-- 소켓 생성/해제 및 각종 소켓 옵션을 설정할 수 있는 유틸 클래스입니다.
+- This is a utility class that can create/release sockets and set various socket options.
 ``` c++
-//...(중략)
+//...(omitted)
 
 SOCKET SocketUtils::CreateSocket()
 {
@@ -303,15 +294,13 @@ bool SocketUtils::SetTcpNoDelay(SOCKET socket, bool flag)
 	return SetSockOpt(socket, SOL_SOCKET, TCP_NODELAY, flag);
 }
 
-//...(중략)
+//...(omitted)
 ```
 
 
-# 게임 세션 관리
-(캡쳐 필요)
-게임세션(=게임룸)에 대한 관리
+# Session management
 ### **GameSessionManager.cpp**
-- 게임 세션에서는 현재 플레이어들과와 게임룸 정보를 관리합니다.
+- A game session manages current players and game room information.
 ``` c++
 GameSessionManager GSessionManager;
 
@@ -337,7 +326,7 @@ void GameSessionManager::Broadcast(SendBufferRef sendBuffer)
 }
 ```
 ### **GameSession.cpp**
-- 클라이언트로부터 받은 패킷을 ClientPacketHandler.cpp에 넘겨주어 패킷 처리를 하도록 유도합니다.
+- Induces packet processing by passing packets received from clients to ClientPacketHandler.cpp.
 ``` c++
 void GameSession::OnConnected()
 {
@@ -368,15 +357,14 @@ void GameSession::OnRecvPacket(BYTE* buffer, int32 len)
 }
 ```
 
-# 패킷 처리
-(캡쳐 필요)
+# Packet processing
 ### **ClientPacketHandler.cpp**
-- 클라이언트와의 패킷 송수신을 처리합니다.
-- 실제 패킷에 대한 응답처리가 이 클래스에서 이루어집니다.
+- It handles sending and receiving packets to and from clients.
+- Response processing for actual packets is done in this class.
 ``` c++
-//...(중략)
+//...(omitted)
 
-//패킷 핸들러에 각 패킷마다 처리해야할 함수를 정의
+//Define a function to be processed for each packet in the packet handler
 static void Init()
 {
 	for (int32 i = 0; i < UINT16_MAX; i++)
@@ -386,18 +374,18 @@ static void Init()
 	GPacketHandler[PKT_C_CHAT] = [](PacketSessionRef& session, BYTE* buffer, int32 len) { return HandlePacket<Protocol::C_CHAT>(Handle_C_CHAT, session, buffer, len); };
 }
 	
-//패킷 핸들 요청이 오면 패킷Id에 맞게 등록해 두었던 함수를 실행
+//When a packet handle request is received, the function registered according to the packet ID is executed.
 static bool HandlePacket(PacketSessionRef& session, BYTE* buffer, int32 len)
 {
 	PacketHeader* header = reinterpret_cast<PacketHeader*>(buffer);
 	return GPacketHandler[header->id](session, buffer, len);
 }
 
-//...(중략)
+//...(omitted)
 ```
-- 응답을 보내기 위해 SendBuffer를 만들어 보낸다.
+- Create and send SendBuffer to send the response.
 ```c++
-//...(중략)
+//...(omitted)
 
 template<typename T>
 static SendBufferRef MakeSendBuffer(T& pkt, uint16 pktId)
@@ -415,30 +403,24 @@ static SendBufferRef MakeSendBuffer(T& pkt, uint16 pktId)
 	return sendBuffer;
 }
 
-//...(중략)
+//...(omitted)
 ```
-- 각 패킷Id에 따라 정의된 컨텐츠를 수행합니다.
+- It executes the defined action according to each packet ID.
 ``` c++
-//...(중략)
+//...(omitted)
 
-//로그인 패킷 
+//Handles login packet
 bool Handle_C_LOGIN(PacketSessionRef& session, Protocol::C_LOGIN& pkt)
 {
 	GameSessionRef gameSession = static_pointer_cast<GameSession>(session);
 
-	// TODO : Validation 체크
-
 	Protocol::S_LOGIN loginPkt;
 	loginPkt.set_success(true);
 
-	// DB에서 플레이 정보를 긁어온다
-	// GameSession에 플레이 정보를 저장 (메모리)
-
-	// ID 발급 (DB 아이디가 아니고, 인게임 아이디)
 	static Atomic<uint64> idGenerator = 1;
 
 	auto player = loginPkt.add_players();
-	player->set_name(u8"DB에서긁어온이름1");
+	player->set_name(u8"player1");
 	player->set_playertype(Protocol::PLAYER_TYPE_KNIGHT);
 
 	PlayerRef playerRef = MakeShared<Player>();
@@ -450,7 +432,7 @@ bool Handle_C_LOGIN(PacketSessionRef& session, Protocol::C_LOGIN& pkt)
 	gameSession->_players.push_back(playerRef);
 
 	auto player = loginPkt.add_players();
-	player->set_name(u8"DB에서긁어온이름2");
+	player->set_name(u8"player2");
 	player->set_playertype(Protocol::PLAYER_TYPE_MAGE);
 
 	PlayerRef playerRef = MakeShared<Player>();
@@ -467,7 +449,7 @@ bool Handle_C_LOGIN(PacketSessionRef& session, Protocol::C_LOGIN& pkt)
 	return true;
 }
 
-//게임 입장 패킷 처리
+//Handles enter game packet
 bool Handle_C_ENTER_GAME(PacketSessionRef& session, Protocol::C_ENTER_GAME& pkt)
 {
 	GameSessionRef gameSession = static_pointer_cast<GameSession>(session);
@@ -488,7 +470,7 @@ bool Handle_C_ENTER_GAME(PacketSessionRef& session, Protocol::C_ENTER_GAME& pkt)
 	return true;
 }
 
-//채팅 패킷 처리
+//Handles chatting packet
 bool Handle_C_CHAT(PacketSessionRef& session, Protocol::C_CHAT& pkt)
 {
 	std::cout << pkt.msg() << endl;
@@ -502,17 +484,16 @@ bool Handle_C_CHAT(PacketSessionRef& session, Protocol::C_CHAT& pkt)
 	return true;
 }
 
-//...(중략)
+//...(omitted)
 ```
 
 
-# Job 큐
-(캡쳐 필요)
-- 각각의 쓰레드에서 개별적으로 작업을 하면 Lock을 잡아야 하는 일이 많아 성능이 느려질 수 있습니다.
-- 이 현상을 예방하기 위해 JobQueue에 일감을 푸시하고, JobQueue에서 쌓인 작업들을 일괄적으로 처리하는 Command 패턴을 도입했습니다.
+# Job queue
+- If each thread works individually, there are many locks that need to be held, which can slow down performance.
+- To prevent this phenomenon, we introduced the Command pattern, which pushes tasks to JobQueue and processes the accumulated tasks in a batch.
 
 ### **Job.cpp**
-- 필요한 작업을 클래스 내부 Callback에 등록하며 생성한다. 
+- Create and register the necessary work in the callback inside the class.
 ``` c++
 class Job
 {
@@ -540,33 +521,31 @@ private:
 };
 ```
 ### **JobQueue.cpp**
-- 일감을 푸시하거나 실행하는 함수로 되어 있습니다.
+- Has functions that pushes or executes tasks.
 ``` c++
-//..(중략)
+//..(omitted)
 
-//일감 
 void JobQueue::Push(JobRef job, bool pushOnly)
 {
 	const int32 prevCount = _jobCount.fetch_add(1);
 	_jobs.Push(job); // WRITE_LOCK
 
-	// 첫번째 Job을 넣은 쓰레드가 실행까지 담당
+	// The thread in which the first job is inserted is responsible for executing it.
 	if (prevCount == 0)
 	{
-		// 이미 실행중인 JobQueue가 없으면 실행
+		// Run if no JobQueue is already running
 		if (LCurrentJobQueue == nullptr && pushOnly == false)
 		{
 			Execute();
 		}
 		else
 		{
-			// 여유 있는 다른 쓰레드가 실행하도록 GlobalQueue에 넘긴다
+			// Pass it to the GlobalQueue for execution by other free threads
 			GGlobalQueue->Push(shared_from_this());
 		}
 	}
 }
 
-// 1) 일감이 너~무 몰리면?
 void JobQueue::Execute()
 {
 	LCurrentJobQueue = this;
@@ -580,7 +559,7 @@ void JobQueue::Execute()
 		for (int32 i = 0; i < jobCount; i++)
 			jobs[i]->Execute();
 
-		// 남은 일감이 0개라면 종료
+		// End when there are 0 tasks left
 		if (_jobCount.fetch_sub(jobCount) == jobCount)
 		{
 			LCurrentJobQueue = nullptr;
@@ -591,17 +570,16 @@ void JobQueue::Execute()
 		if (now >= LEndTickCount)
 		{
 			LCurrentJobQueue = nullptr;
-			// 여유 있는 다른 쓰레드가 실행하도록 GlobalQueue에 넘긴다
+			// Pass it to the GlobalQueue for execution by other free threads
 			GGlobalQueue->Push(shared_from_this());
 			break;
 		}			
 	}
 }
 
-//..(중략)
+//..(omitted)
 ```
 ### **JobTimer.cpp**
-(설명 필요)
 ``` c++
 void JobTimer::Reserve(uint64 tickAfter, weak_ptr<JobQueue> owner, JobRef job)
 {
@@ -615,7 +593,7 @@ void JobTimer::Reserve(uint64 tickAfter, weak_ptr<JobQueue> owner, JobRef job)
 
 void JobTimer::Distribute(uint64 now)
 {
-	// 한 번에 1 쓰레드만 통과
+	// Only one thread pass through at a time
 	if (_distributing.exchange(true) == true)
 		return;
 
@@ -641,7 +619,7 @@ void JobTimer::Distribute(uint64 now)
 		ObjectPool<JobData>::Push(item.jobData);
 	}
 
-	// 끝났으면 풀어준다
+	// Release it when it's over
 	_distributing.store(false);
 }
 
@@ -660,11 +638,10 @@ void JobTimer::Clear()
 
 
 # DB
-(캡쳐 필요)
 ### **DBConnectionPool.cpp**
-- DB 커넥션 연결 개수를 설정하여 서버 초기화 시 그 수 만큼 커넥션을 생성합니다.
+- Set the number of DB connections and create as many connections as the number when initializing the server.
 ``` c++
-//..(중략)
+//..(omitted)
 
 bool DBConnectionPool::Connect(int32 connectionCount, const WCHAR* connectionString)
 {
@@ -676,7 +653,6 @@ bool DBConnectionPool::Connect(int32 connectionCount, const WCHAR* connectionStr
 	if (::SQLSetEnvAttr(_environment, SQL_ATTR_ODBC_VERSION, reinterpret_cast<SQLPOINTER>(SQL_OV_ODBC3), 0) != SQL_SUCCESS)
 		return false;
 
-	//설정한 수 만큼 커넥션 생성
 	for (int32 i = 0; i < connectionCount; i++)
 	{
 		DBConnection* connection = xnew<DBConnection>();
@@ -689,15 +665,15 @@ bool DBConnectionPool::Connect(int32 connectionCount, const WCHAR* connectionStr
 	return true;
 }
 
-//..(중략)
+//..(omitted)
 ```
 ### **DBConnection.cpp**
-- 실질적인 DB 커넥션 클래스입니다.
-- SQL 드라이버와 연결을 맺고 사용자가 요청한 쿼리를 실행하는 주체입니다.
+- This is the actual DB connection class.
+- The entity that establishes a connection with the SQL driver and executes the query requested by the user.
 ``` c++
-//...(중략)
+//...(omitted)
 
-//SQL 드라이버와 연결 맺기
+//Establishing a connection with the SQL driver
 bool DBConnection::Connect(SQLHENV henv, const WCHAR* connectionString)
 {
 	if (::SQLAllocHandle(SQL_HANDLE_DBC, henv, &_connection) != SQL_SUCCESS)
@@ -741,7 +717,7 @@ void DBConnection::Clear()
 	}
 }
 
-//쿼리문 실행
+//Executes query statement
 bool DBConnection::Execute(const WCHAR* query)
 {
 	SQLRETURN ret = ::SQLExecDirectW(_statement, (SQLWCHAR*)query, SQL_NTSL);
@@ -752,5 +728,5 @@ bool DBConnection::Execute(const WCHAR* query)
 	return false;
 }
 
-//...(중략)
+//...(omitted)
 ```
